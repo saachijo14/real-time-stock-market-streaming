@@ -1,4 +1,8 @@
-
+from fastapi import WebSocket, WebSocketDisconnect
+from confluent_kafka import Consumer
+import asyncio
+import uuid
+import json
 from fastapi import FastAPI, HTTPException
 from backend.database import get_connection
 from psycopg2.extras import RealDictCursor
@@ -70,3 +74,40 @@ def get_stock_history(symbol: str):
     conn.close()
 
     return records
+
+
+
+@app.websocket("/ws/stocks")
+async def stock_websocket(websocket: WebSocket):
+    await websocket.accept()
+
+    consumer = Consumer({
+        "bootstrap.servers": "localhost:9092",
+        "group.id": f"websocket-{uuid.uuid4()}",
+        "auto.offset.reset": "latest",
+        "enable.auto.commit": True
+    })
+
+    consumer.subscribe(["stock-prices"])
+
+    print("WebSocket client connected!")
+
+    try:
+        while True:
+            msg = await asyncio.to_thread(consumer.poll, 1.0)
+
+            if msg is None:
+                continue
+
+            if msg.error():
+                continue
+
+            stock = json.loads(msg.value().decode("utf-8"))
+
+            await websocket.send_json(stock)
+
+    except WebSocketDisconnect:
+        print("WebSocket client disconnected.")
+
+    finally:
+        consumer.close()
