@@ -6,8 +6,16 @@ import json
 from fastapi import FastAPI, HTTPException
 from backend.database import get_connection
 from psycopg2.extras import RealDictCursor
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Stock Market Streaming API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def home():
