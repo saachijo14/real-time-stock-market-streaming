@@ -59,12 +59,34 @@ function App() {
 }, [selected]);
 
   // Connect to Kafka updates through WebSocket
-  useEffect(() => {
-    const socket = new WebSocket(WS);
+  
+useEffect(() => {
+  let socket;
+  let reconnectTimer;
+  let cancelled = false;
 
-    socket.onopen = () => setConnected(true);
-    socket.onclose = () => setConnected(false);
-    socket.onerror = () => setConnected(false);
+  function connect() {
+    if (cancelled) return;
+
+    socket = new WebSocket(WS);
+
+    socket.onopen = () => {
+      setConnected(true);
+      console.log("WebSocket connected!");
+    };
+
+    socket.onclose = () => {
+      setConnected(false);
+      console.log("WebSocket disconnected. Reconnecting...");
+      
+      if (!cancelled) {
+        reconnectTimer = setTimeout(connect, 3000);
+      }
+    };
+
+    socket.onerror = () => {
+      socket.close();
+    };
 
     socket.onmessage = (event) => {
       const stock = JSON.parse(event.data);
@@ -86,9 +108,17 @@ function App() {
         ].slice(-50));
       }
     };
+  }
 
-    return () => socket.close();
-  }, [selected]);
+  connect();
+
+  return () => {
+    cancelled = true;
+    clearTimeout(reconnectTimer);
+    socket?.close();
+  };
+}, [selected]);
+
 
   // Load latest stored records initially
   useEffect(() => {
